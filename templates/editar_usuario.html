@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Editar Vendedor - Império da Construção</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light py-4">
+    <div class="container" style="max-width: 600px;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Editar Vendedor: {{ usuario.nome }}</h2>
+            <a href="/usuarios" class="btn btn-outline-secondary">Voltar aos Vendedores</a>
+        </div>
+
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="nome" class="form-label">Nome Completo *</label>
+                        <input type="text" class="form-control" id="nome" name="nome" value="{{ usuario.nome }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Usuário / Login *</label>
+                        <input type="text" class="form-control" id="username" name="username" value="{{ usuario.username }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="cargo" class="form-label">Cargo / Função</label>
+                        <select class="form-select" id="cargo" name="cargo">
+                            <option value="Vendedor" {% if usuario.cargo == 'Vendedor' %}selected{% endif %}>Vendedor</option>
+                            <option value="Gerente" {% if usuario.cargo == 'Gerente' %}selected{% endif %}>Gerente</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Nova Senha (Opcional)</label>
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Deixe em branco para manter a atual">
+                        <small class="text-muted">Preencha apenas se desejar alterar a senha deste usuário.</small>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="/usuarios" class="btn btn-secondary me-md-2">Cancelar</a>
+                        <button type="submit" class="btn btn-primary px-4">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+<!-- ... restante do seu código HTML ... -->
+
+    <!-- BLOQUEIO POR INATIVIDADE -->
+    <div id="overlayBloqueio" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); z-index: 99999; align-items: center; justify-content: center;">
+        <div class="card shadow-lg p-4 text-center" style="width: 100%; max-width: 380px; border-radius: 12px;">
+            <h3 class="text-warning mb-2">🔒 Sistema Bloqueado</h3>
+            <p class="text-muted small mb-3">Inatividade detectada. Digite sua senha para continuar.</p>
+            <form id="formDesbloquear" onsubmit="desbloquearSistema(event)">
+                <div class="mb-3 text-start">
+                    <label class="form-label small fw-bold">Operador Atual: {{ current_user.nome }}</label>
+                    <input type="password" class="form-control" id="senhaDesbloqueio" placeholder="Digite sua senha" required autofocus>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Desbloquear</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let tempoInatividade = 0;
+        const TEMPO_LIMITE = 5 * 60 * 1000; // 5 minutos
+        let timerId = null;
+
+        function resetarTimer() {
+            clearTimeout(timerId);
+            tempoInatividade = 0;
+            timerId = setTimeout(ativarBloqueio, TEMPO_LIMITE);
+        }
+
+        function ativarBloqueio() {
+            document.getElementById('overlayBloqueio').style.display = 'flex';
+            document.getElementById('senhaDesbloqueio').value = '';
+            document.getElementById('senhaDesbloqueio').focus();
+        }
+
+        async function desbloquearSistema(event) {
+            event.preventDefault();
+            const senha = document.getElementById('senhaDesbloqueio').value;
+
+            try {
+                const response = await fetch('/api/desbloquear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ senha: senha })
+                });
+
+                const resultado = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('overlayBloqueio').style.display = 'none';
+                    resetarTimer();
+                } else {
+                    alert('Erro: ' + resultado.mensagem);
+                    document.getElementById('senhaDesbloqueio').value = '';
+                    document.getElementById('senhaDesbloqueio').focus();
+                }
+            } catch (error) {
+                alert('Erro de comunicação com o servidor.');
+            }
+        }
+
+        window.onload = resetarTimer;
+        window.onmousemove = resetarTimer;
+        window.onkeypress = resetarTimer;
+        window.onclick = resetarTimer;
+        window.onscroll = resetarTimer;
+    </script>
+</body>
+</html>
+
+</body>
+</html>

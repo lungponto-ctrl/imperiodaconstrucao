@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Estoque - Depósito de Construção</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light py-4">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2>Controle de Estoque e Produtos</h2>
+                <small class="text-muted">Operador Atual: <strong>{{ current_user.nome }}</strong> ({{ current_user.cargo }})</small>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <a href="/pdv" class="btn btn-success">PDV / Balcão</a>
+                <a href="/vendas" class="btn btn-outline-primary">Histórico de Pedidos</a>
+                <a href="/relatorios" class="btn btn-outline-dark">Relatórios</a>
+                <a href="/usuarios" class="btn btn-outline-secondary">Vendedores</a>
+                <a href="/produtos/novo" class="btn btn-primary">+ Novo Produto</a>
+                <a href="/logout" class="btn btn-danger">Sair</a>
+            </div>
+        </div>
+
+        <!-- Barra de Pesquisa Instantânea -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-body py-2">
+                <input type="text" id="inputBusca" class="form-control" placeholder="🔍 Pesquisar produto por nome, código de barras ou SKU..." onkeyup="filtrarProdutos()">
+            </div>
+        </div>
+
+        <!-- Tabela de Produtos -->
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <table class="table table-hover align-middle" id="tabelaProdutos">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Produto</th>
+                            <th>Categoria</th>
+                            <th>Estoque Atual</th>
+                            <th>Mínimo</th>
+                            <th>Preço Base</th>
+                            <th class="text-end">Ações / Estoque</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in produtos %}
+                        <tr class="linha-produto">
+                            <td>
+                                <span class="nome-produto"><strong>{{ p.nome }}</strong></span><br>
+                                <small class="text-muted info-busca">SKU: {{ p.sku or 'N/D' }} | Un. Base: {{ p.unidade_base }} {% if p.codigo_barras %} | Cód: {{ p.codigo_barras }}{% endif %}</small>
+                            </td>
+                            <td>{{ p.categoria.nome if p.categoria else 'Geral' }}</td>
+                            <td>
+                                <span class="badge {% if p.quantidade_estoque <= p.estoque_minimo %}bg-danger{% else %}bg-success{% endif %} fs-6">
+                                    {{ "%g"|format(p.quantidade_estoque) }} {{ p.unidade_base }}
+                                </span>
+                            </td>
+                            <td>{{ "%g"|format(p.estoque_minimo) }}</td>
+                            <td>R$ {{ "%.2f"|format(p.preco_venda_base) }}</td>
+                            <td class="text-end">
+                                <!-- Botões de Estoque -->
+                                <button class="btn btn-sm btn-outline-success" onclick="abrirModalMovimentacao('ENTRADA', '{{ p.id }}', '{{ p.nome }}', '{{ p.unidade_base }}')" title="Entrada de Estoque">Ent.</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="abrirModalMovimentacao('SAIDA', '{{ p.id }}', '{{ p.nome }}', '{{ p.unidade_base }}')" title="Saída de Estoque">Saída</button>
+
+                                <!-- Botões de Cadastro (Editar e Excluir) -->
+                                <a href="/produtos/{{ p.id }}/editar" class="btn btn-sm btn-outline-primary" title="Editar Produto">✏️</a>
+                                <form action="/produtos/{{ p.id }}/excluir" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir o produto {{ p.nome }}?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Excluir Produto">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">Nenhum produto cadastrado ainda.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Movimentação (Entrada / Saída) -->
+    <div class="modal fade" id="modalMovimentacao" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="formMovimentacao" onsubmit="realizarMovimentacao(event)">
+                    <div class="modal-header" id="modalHeader">
+                        <h5 class="modal-title" id="modalTitulo">Movimentar Estoque</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="produto_id" name="produto_id">
+                        <input type="hidden" id="tipo" name="tipo">
+
+                        <p class="mb-3">Produto: <strong id="lblNomeProduto"></strong></p>
+
+                        <div class="mb-3">
+                            <label for="quantidade" class="form-label">Quantidade (<span id="lblUnidadeBase"></span>)</label>
+                            <input type="number" step="0.001" class="form-control" id="quantidade" name="quantidade" required placeholder="Ex: 10">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="observacao" class="form-label">Observação / Motivo</label>
+                            <input type="text" class="form-control" id="observacao" name="observacao" placeholder="Ex: Compra NF 1234 ou Venda Balcão">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary" id="btnSalvarMov">Confirmar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS e Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Função de Pesquisa Instantânea
+        function filtrarProdutos() {
+            const termo = document.getElementById('inputBusca').value.toLowerCase();
+            const linhas = document.querySelectorAll('.linha-produto');
+
+            linhas.forEach(linha => {
+                const textoLinha = linha.innerText.toLowerCase();
+                if (textoLinha.includes(termo)) {
+                    linha.style.display = '';
+                } else {
+                    linha.style.display = 'none';
+                }
+            });
+        }
+
+        const modalElement = new bootstrap.Modal(document.getElementById('modalMovimentacao'));
+
+        function abrirModalMovimentacao(tipo, produtoId, nomeProduto, unidadeBase) {
+            document.getElementById('produto_id').value = produtoId;
+            document.getElementById('tipo').value = tipo;
+            document.getElementById('lblNomeProduto').innerText = nomeProduto;
+            document.getElementById('lblUnidadeBase').innerText = unidadeBase;
+            document.getElementById('quantidade').value = '';
+            document.getElementById('observacao').value = '';
+
+            const header = document.getElementById('modalHeader');
+            const btn = document.getElementById('btnSalvarMov');
+
+            if (tipo === 'ENTRADA') {
+                header.className = 'modal-header bg-success text-white';
+                document.getElementById('modalTitulo').innerText = 'Registrar Entrada de Estoque';
+                btn.className = 'btn btn-success';
+            } else {
+                header.className = 'modal-header bg-danger text-white';
+                document.getElementById('modalTitulo').innerText = 'Registrar Saída de Estoque';
+                btn.className = 'btn btn-danger';
+            }
+
+            modalElement.show();
+        }
+
+        async function realizarMovimentacao(event) {
+            event.preventDefault();
+            const formData = new FormData(document.getElementById('formMovimentacao'));
+
+            try {
+                const response = await fetch('/estoque/movimentar', {
+                    method: 'POST',
+                    body: formData
+                });
+                const resultado = await response.json();
+
+                if (response.ok) {
+                    alert(resultado.mensagem);
+                    location.reload();
+                } else {
+                    alert('Erro: ' + resultado.mensagem);
+                }
+            } catch (error) {
+                alert('Erro de comunicação com o servidor.');
+            }
+        }
+    </script>
+</body>
+</html>

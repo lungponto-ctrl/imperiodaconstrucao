@@ -1,0 +1,32 @@
+<div class="mb-3">
+    <p class="mb-1"><strong>Cliente:</strong> {{ venda.cliente_nome }}</p>
+    <p class="mb-1"><strong>Tipo:</strong> {{ venda.tipo }} | <strong>Status:</strong> {{ venda.status }}</p>
+    <p class="mb-1"><strong>Forma de Pagamento:</strong> {{ venda.forma_pagamento or 'N/A' }}</p>
+</div>
+
+<table class="table table-bordered align-middle">
+    <thead class="table-light">
+        <tr>
+            <th>Produto</th>
+            <th>Quantidade</th>
+            <th>Preço Unitário</th>
+            <th>Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in venda.itens %}
+        <tr>
+            <td>{{ item.produto.nome }}</td>
+            <td>{{ item.quantidade }} {{ item.produto.unidade_base }}</td>
+            <td>R$ {{ "%.2f"|format(item.preco_unitario) }}</td>
+            <td>R$ {{ "%.2f"|format(item.subtotal) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th colspan="3" class="text-end">Total:</th>
+            <th>R$ {{ "%.2f"|format(venda.valor_total) }}</th>
+        </tr>
+    </tfoot>
+</table>

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>PDV / Balcão de Vendas - Império da Construção</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light py-4">
+    <div class="container-fluid px-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>PDV / Balcão de Vendas</h2>
+            <div>
+                <a href="/vendas" class="btn btn-outline-primary me-2">Histórico de Pedidos</a>
+                <a href="/" class="btn btn-outline-secondary">Ver Estoque</a>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Coluna Esquerda: Adição de Produtos -->
+            <div class="col-md-7">
+                <!-- Leitura Rápida por Código de Barras -->
+                <div class="card shadow-sm mb-3 border-primary">
+                    <div class="card-header bg-primary text-white">Leitura Rápida por Código de Barras</div>
+                    <div class="card-body">
+                        <div class="input-group">
+                            <input type="text" class="form-control form-control-lg" id="inputCodigoBarras" placeholder="Bipe o código de barras aqui..." autofocus onkeypress="if(event.key === 'Enter') buscarEAdicionarPorCodigo(this.value)">
+                            <button class="btn btn-success px-4" type="button" onclick="buscarEAdicionarPorCodigo(document.getElementById('inputCodigoBarras').value)">Adicionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header bg-secondary text-white">Selecionar Produto Manualmente</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="selectProduto" class="form-label">Produto</label>
+                            <select class="form-select" id="selectProduto" onchange="atualizarPrecoEUnidades()">
+                                <option value="">Selecione o produto...</option>
+                                {% for p in produtos %}
+                                <option value="{{ p.id }}" data-preco="{{ p.preco_venda_base }}" data-unidade="{{ p.unidade_base }}" data-codigo="{{ p.codigo_barras or '' }}">
+                                    {{ p.nome }} (Estoque: {{ p.quantidade_estoque }} {{ p.unidade_base }}) - R$ {{ "%.2f"|format(p.preco_venda_base) }} {% if p.codigo_barras %}[Cod: {{ p.codigo_barras }}]{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- CALCULADORA DE METRAGEM PARA PISOS / CAIXAS -->
+                        <div class="p-3 mb-3 bg-light border rounded" id="blocoCalculadoraMetragem" style="display: none;">
+                            <label class="form-label small fw-bold text-primary">📏 Conversor de Metragem (m²) para Caixa</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" step="0.01" class="form-control" id="metrosDesejados" placeholder="Quantos m² o cliente precisa?">
+                                <button class="btn btn-outline-primary" type="button" onclick="calcularCaixasPorMetragem()">Calcular Caixas</button>
+                            </div>
+                            <div class="form-text small text-muted" id="infoRendimentoCaixa">Informe os metros quadrados necessários para calcular o total de caixas.</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="quantidadeItem" class="form-label">Quantidade</label>
+                                <input type="number" step="0.001" class="form-control" id="quantidadeItem" value="1">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="precoUnitario" class="form-label">Preço Unitário (R$)</label>
+                                <input type="number" step="0.01" class="form-control" id="precoUnitario" value="0.00">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="button" class="btn btn-success w-100" onclick="adicionarAoCarrinho()">+ Adicionar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Carrinho / Itens Adicionados -->
+                <div class="card shadow-sm">
+                    <div class="card-header bg-dark text-white">2. Itens do Pedido</div>
+                    <div class="card-body p-0">
+                        <table class="table table-striped mb-0 align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Produto</th>
+                                    <th>Qtd</th>
+                                    <th>Preço Un.</th>
+                                    <th>Subtotal</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaCarrinho">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-3">Nenhum item adicionado ainda.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna Direita: Fechamento do Pedido -->
+            <div class="col-md-5">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-dark text-white">3. Fechamento e Pagamento</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="clienteNome" class="form-label">Nome do Cliente / Obra</label>
+                            <input type="text" class="form-control" id="clienteNome" placeholder="Ex: João da Reforma / Construtora X">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="tipoOperacao" class="form-label">Tipo de Operação</label>
+                            <select class="form-select" id="tipoOperacao">
+                                <option value="ORCAMENTO">Orçamento (Não mexe no estoque)</option>
+                                <option value="VENDA">Venda Direta (Baixa o estoque automático)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="formaPagamento" class="form-label">Forma de Pagamento</label>
+                            <select class="form-select" id="formaPagamento">
+                                <option value="DINHEIRO">Dinheiro</option>
+                                <option value="PIX">Pix</option>
+                                <option value="CARTAO">Cartão</option>
+                                <option value="CREDIARIO">Crediário / Fiado</option>
+                            </select>
+                        </div>
+
+                        <hr>
+
+                        <!-- OPÇÃO DE ENTREGA -->
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="possuiEntrega" onchange="toggleCamposEntrega()">
+                            <label class="form-check-label fw-bold text-primary" for="possuiEntrega">
+                                Solicitar Entrega na Obra / Endereço
+                            </label>
+                        </div>
+
+                        <div id="blocoCamposEntrega" class="border rounded p-3 mb-3 bg-white" style="display: none;">
+                            <h6 class="text-secondary mb-3">Dados para Entrega</h6>
+                            <div class="mb-2">
+                                <label for="telefoneEntrega" class="form-label small">Telefone de Contato</label>
+                                <input type="text" class="form-control form-control-sm" id="telefoneEntrega" placeholder="(31) 90000-0000">
+                            </div>
+                            <div class="mb-2">
+                                <label for="enderecoEntrega" class="form-label small">Endereço de Entrega</label>
+                                <input type="text" class="form-control form-control-sm" id="enderecoEntrega" placeholder="Rua, Número, Bairro, Cidade">
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-6">
+                                    <label for="dataEntrega" class="form-label small">Data da Entrega</label>
+                                    <input type="date" class="form-control form-control-sm" id="dataEntrega">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="valorFrete" class="form-label small">Valor do Frete (R$)</label>
+                                    <input type="number" step="0.01" class="form-control form-control-sm" id="valorFrete" value="0.00" oninput="renderizarCarrinho()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+                        <div class="d-flex justify-content-between mb-4">
+                            <h4>Total Geral:</h4>
+                            <h4 class="text-success" id="lblTotalGeral">R$ 0,00</h4>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="button" class="btn btn-primary btn-lg" onclick="finalizarPedido()">Finalizar Pedido</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de Gestão do Carrinho, Código de Barras e Impressão -->
+    <script>
+        let carrinho = [];
+
+        window.onload = function() {
+            const inputBarra = document.getElementById('inputCodigoBarras');
+            if (inputBarra) inputBarra.focus();
+            resetarTimer();
+        };
+
+        function toggleCamposEntrega() {
+            const possui = document.getElementById('possuiEntrega').checked;
+            const bloco = document.getElementById('blocoCamposEntrega');
+            bloco.style.display = possui ? 'block' : 'none';
+            if (!possui) {
+                document.getElementById('telefoneEntrega').value = '';
+                document.getElementById('enderecoEntrega').value = '';
+                document.getElementById('dataEntrega').value = '';
+                document.getElementById('valorFrete').value = '0.00';
+            }
+            renderizarCarrinho();
+        }
+
+        function atualizarPrecoEUnidades() {
+            const select = document.getElementById('selectProduto');
+            const selectedOption = select.options[select.selectedIndex];
+            const preco = selectedOption.getAttribute('data-preco') || 0;
+            const unidadeBase = selectedOption.getAttribute('data-unidade') || '';
+
+            document.getElementById('precoUnitario').value = parseFloat(preco).toFixed(2);
+            document.getElementById('quantidadeItem').value = 1;
+
+            // Exibe a caixinha de cálculo de metragem se for em M2
+            const blocoMetragem = document.getElementById('blocoCalculadoraMetragem');
+            if (unidadeBase.toUpperCase() === 'M2' || unidadeBase.toUpperCase() === 'M²') {
+                blocoMetragem.style.display = 'block';
+                document.getElementById('metrosDesejados').value = '';
+            } else {
+                blocoMetragem.style.display = 'none';
+            }
+        }
+
+        function calcularCaixasPorMetragem() {
+            const metrosNec = parseFloat(document.getElementById('metrosDesejados').value);
+            if (!metrosNec || metrosNec <= 0) {
+                alert('Informe uma metragem válida em m².');
+                return;
+            }
+
+            // Exemplo padrão para piso (cada caixa costuma ter 2.5 m², ou podemos ajustar conforme o cadastro)
+            // Se o produto tiver conversão cadastrada, o sistema usará o rendimento exato
+            let rendimentoCaixa = 2.5;
+
+            let qtdCaixas = Math.ceil(metrosNec / rendimentoCaixa);
+            document.getElementById('quantidadeItem').value = qtdCaixas;
+            alert(`Para cobrir ${metrosNec} m², o sistema calculou ${qtdCaixas} caixas (considerando ${rendimentoCaixa} m²/caixa).`);
+        }
+
+        function buscarEAdicionarPorCodigo(codigo) {
+            if (!codigo.trim()) return;
+
+            const select = document.getElementById('selectProduto');
+            let produtoEncontrado = false;
+
+            for (let i = 0; i < select.options.length; i++) {
+                const option = select.options[i];
+                const codigoBarrasProduto = option.getAttribute('data-codigo');
+
+                if (codigoBarrasProduto && codigoBarrasProduto.trim() === codigo.trim()) {
+                    select.value = option.value;
+                    atualizarPrecoEUnidades();
+                    adicionarAoCarrinho();
+                    produtoEncontrado = true;
+                    break;
+                }
+            }
+
+            if (!produtoEncontrado) {
+                alert('Produto não encontrado com o código de barras: ' + codigo);
+            }
+
+            const inputBarra = document.getElementById('inputCodigoBarras');
+            inputBarra.value = '';
+            inputBarra.focus();
+        }
+
+        function adicionarAoCarrinho() {
+            const select = document.getElementById('selectProduto');
+            const produtoId = select.value;
+            const nomeProduto = select.options[select.selectedIndex].text;
+            const quantidade = parseFloat(document.getElementById('quantidadeItem').value);
+            const precoUnitario = parseFloat(document.getElementById('precoUnitario').value);
+
+            if (!produtoId) {
+                alert('Selecione um produto.');
+                return;
+            }
+            if (quantidade <= 0 || isNaN(quantidade)) {
+                alert('Informe uma quantidade válida.');
+                return;
+            }
+
+            const subtotal = quantidade * precoUnitario;
+
+            carrinho.push({
+                produto_id: produtoId,
+                nome: nomeProduto.split(' (')[0],
+                quantidade: quantidade,
+                preco_unitario: precoUnitario,
+                subtotal: subtotal
+            });
+
+            renderizarCarrinho();
+            select.value = "";
+            document.getElementById('precoUnitario').value = "0.00";
+            document.getElementById('quantidadeItem').value = "1";
+            document.getElementById('blocoCalculadoraMetragem').style.display = 'none';
+
+            const inputBarra = document.getElementById('inputCodigoBarras');
+            if (inputBarra) inputBarra.focus();
+        }
+
+        function removerItem(index) {
+            carrinho.splice(index, 1);
+            renderizarCarrinho();
+        }
+
+        function renderizarCarrinho() {
+            const tbody = document.getElementById('tabelaCarrinho');
+            tbody.innerHTML = '';
+
+            if (carrinho.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">Nenhum item adicionado ainda.</td></tr>`;
+                document.getElementById('lblTotalGeral').innerText = 'R$ 0,00';
+                return;
+            }
+
+            let totalProdutos = 0;
+            carrinho.forEach((item, index) => {
+                totalProdutos += item.subtotal;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.nome}</td>
+                        <td>${item.quantidade}</td>
+                        <td>R$ ${item.preco_unitario.toFixed(2)}</td>
+                        <td>R$ ${item.subtotal.toFixed(2)}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-danger" onclick="removerItem(${index})">X</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            let frete = 0;
+            const possuiEntrega = document.getElementById('possuiEntrega').checked;
+            if (possuiEntrega) {
+                frete = parseFloat(document.getElementById('valorFrete').value) || 0;
+            }
+
+            const totalGeral = totalProdutos + frete;
+            document.getElementById('lblTotalGeral').innerText = `R$ ${totalGeral.toFixed(2)}`;
+        }
+
+        async function finalizarPedido() {
+            if (carrinho.length === 0) {
+                alert('O carrinho está vazio.');
+                return;
+            }
+
+            const clienteNome = document.getElementById('clienteNome').value || 'Cliente Balcão';
+            const tipo = document.getElementById('tipoOperacao').value;
+            const formaPagamento = document.getElementById('formaPagamento').value;
+
+            const possuiEntrega = document.getElementById('possuiEntrega').checked;
+            let dadosEntrega = { possui_entrega: false };
+
+            if (possuiEntrega) {
+                dadosEntrega = {
+                    possui_entrega: true,
+                    telefone: document.getElementById('telefoneEntrega').value,
+                    endereco: document.getElementById('enderecoEntrega').value,
+                    data_entrega: document.getElementById('dataEntrega').value,
+                    valor_frete: parseFloat(document.getElementById('valorFrete').value) || 0
+                };
+            }
+
+            let totalProdutos = carrinho.reduce((acc, item) => acc + item.subtotal, 0);
+            let frete = possuiEntrega ? (parseFloat(document.getElementById('valorFrete').value) || 0) : 0;
+            let totalGeral = totalProdutos + frete;
+
+            const dadosPedido = {
+                cliente_nome: clienteNome,
+                tipo: tipo,
+                forma_pagamento: formaPagamento,
+                itens: carrinho,
+                dados_entrega: dadosEntrega
+            };
+
+            try {
+                const response = await fetch('/vendas/nova', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dadosPedido)
+                });
+                const resultado = await response.json();
+
+                if (response.ok) {
+                    let itensHtml = '';
+                    carrinho.forEach(item => {
+                        itensHtml += `
+                            <tr>
+                                <td>${item.nome}</td>
+                                <td style="text-align: center;">${item.quantidade}</td>
+                                <td style="text-align: right;">R$ ${item.preco_unitario.toFixed(2)}</td>
+                                <td style="text-align: right;">R$ ${item.subtotal.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+
+                    let entregaHtml = '';
+                    if (possuiEntrega) {
+                        entregaHtml = `
+                            <div style="margin-top: 15px; border-top: 1px dashed #999; padding-top: 10px;">
+                                <p><strong>ENTREGA SOLICITADA</strong></p>
+                                <p><strong>Endereço:</strong> ${dadosEntrega.endereco}</p>
+                                <p><strong>Telefone:</strong> ${dadosEntrega.telefone} | <strong>Data Prevista:</strong> ${dadosEntrega.data_entrega}</p>
+                                <p><strong>Frete:</strong> R$ ${frete.toFixed(2)}</p>
+                            </div>
+                        `;
+                    }
+
+                    const janelaImpressao = window.open('', '_blank', 'width=800,height=600');
+                    janelaImpressao.document.write(`
+                        <html>
+                        <head>
+                            <title>Comprovante - Império da Construção</title>
+                            <style>
+                                body { font-family: Arial, sans-serif; font-size: 14px; color: #000; margin: 20px; }
+                                .center { text-align: center; }
+                                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                                th { background-color: #f2f2f2; }
+                                .right { text-align: right; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="center">
+                                <h3>IMPÉRIO DA CONSTRUÇÃO</h3>
+                                <p>Materiais para Construção e Acabamento</p>
+                                <h4><strong>${tipo} #${resultado.venda_id || ''}</strong></h4>
+                            </div>
+                            <p><strong>Cliente:</strong> ${clienteNome}</p>
+                            <p><strong>Forma de Pagamento:</strong> ${formaPagamento}</p>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th style="text-align: center;">Qtd</th>
+                                        <th style="text-align: right;">Preço Unit.</th>
+                                        <th style="text-align: right;">Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itensHtml}
+                                </tbody>
+                            </table>
+                            ${entregaHtml}
+                            <h3 class="right" style="margin-top: 20px;">Total Geral: R$ ${totalGeral.toFixed(2)}</h3>
+                            <script>
+                                window.onload = function() { window.print(); window.close(); }
+                            <\/script>
+                        </body>
+                        </html>
+                    `);
+                    janelaImpressao.document.close();
+
+                    carrinho = [];
+                    renderizarCarrinho();
+                    document.getElementById('clienteNome').value = '';
+                    document.getElementById('possuiEntrega').checked = false;
+                    toggleCamposEntrega();
+
+                    const inputBarra = document.getElementById('inputCodigoBarras');
+                    if (inputBarra) inputBarra.focus();
+
+                } else {
+                    alert('Erro: ' + resultado.mensagem);
+                }
+            } catch (error) {
+                alert('Erro de comunicação com o servidor.');
+            }
+        }
+    </script>
+
+    <!-- BLOQUEIO POR INATIVIDADE -->
+    <div id="overlayBloqueio" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); z-index: 99999; align-items: center; justify-content: center;">
+        <div class="card shadow-lg p-4 text-center" style="width: 100%; max-width: 380px; border-radius: 12px;">
+            <h3 class="text-warning mb-2">🔒 Sistema Bloqueado</h3>
+            <p class="text-muted small mb-3">Inatividade detectada. Digite sua senha para continuar.</p>
+            <form id="formDesbloquear" onsubmit="desbloquearSistema(event)">
+                <div class="mb-3 text-start">
+                    <label class="form-label small fw-bold">Operador Atual: {{ current_user.nome }}</label>
+                    <input type="password" class="form-control" id="senhaDesbloqueio" placeholder="Digite sua senha" required autofocus>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Desbloquear</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let tempoInatividade = 0;
+        const TEMPO_LIMITE = 5 * 60 * 1000;
+        let timerId = null;
+
+        function resetarTimer() {
+            clearTimeout(timerId);
+            tempoInatividade = 0;
+            timerId = setTimeout(ativarBloqueio, TEMPO_LIMITE);
+        }
+
+        function ativarBloqueio() {
+            document.getElementById('overlayBloqueio').style.display = 'flex';
+            document.getElementById('senhaDesbloqueio').value = '';
+            document.getElementById('senhaDesbloqueio').focus();
+        }
+
+        async function desbloquearSistema(event) {
+            event.preventDefault();
+            const senha = document.getElementById('senhaDesbloqueio').value;
+
+            try {
+                const response = await fetch('/api/desbloquear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ senha: senha })
+                });
+
+                const resultado = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('overlayBloqueio').style.display = 'none';
+                    resetarTimer();
+                } else {
+                    alert('Erro: ' + resultado.mensagem);
+                    document.getElementById('senhaDesbloqueio').value = '';
+                    document.getElementById('senhaDesbloqueio').focus();
+                }
+            } catch (error) {
+                alert('Erro de comunicação com o servidor.');
+            }
+        }
+
+        window.onload = resetarTimer;
+        window.onmousemove = resetarTimer;
+        window.onkeypress = resetarTimer;
+        window.onclick = resetarTimer;
+        window.onscroll = resetarTimer;
+    </script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Comprovante de Venda #{{ venda.id }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #ffffff; color: #000; font-size: 14px; }
+        .comprovante { max-width: 800px; margin: 30px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        @media print {
+            .no-print { display: none !important; }
+            .comprovante { border: none; margin: 0; padding: 0; width: 100%; max-width: 100%; }
+        }
+    </style>
+</head>
+<body onload="window.print()">
+
+    <div class="comprovante">
+        <!-- Cabeçalho da Empresa -->
+        <div class="text-center mb-4 border-bottom pb-3">
+            <h3>IMPÉRIO DA CONSTRUÇÃO</h3>
+            <p class="mb-1 text-muted">Materiais para Construção e Acabamento</p>
+            <p class="mb-0"><strong>{{ venda.tipo }} #{{ venda.id }}</strong></p>
+        </div>
+
+        <!-- Informações do Cliente e Venda -->
+        <div class="row mb-3">
+            <div class="col-sm-6">
+                <p class="mb-1"><strong>Cliente:</strong> {{ venda.cliente_nome }}</p>
+                <p class="mb-1"><strong>Data/Hora:</strong> {{ venda.data_criacao.strftime('%d/%m/%Y %H:%M') }}</p>
+            </div>
+            <div class="col-sm-6 text-sm-end">
+                <p class="mb-1"><strong>Vendedor:</strong> {{ venda.vendedor.nome if venda.vendedor else 'Balcão' }}</p>
+                <p class="mb-1"><strong>Forma de Pagamento:</strong> {{ venda.forma_pagamento or 'N/D' }}</p>
+            </div>
+        </div>
+
+        <!-- Tabela de Itens -->
+        <table class="table table-bordered align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Produto</th>
+                    <th class="text-center">Qtd</th>
+                    <th class="text-end">Preço Unit.</th>
+                    <th class="text-end">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in venda.itens %}
+                <tr>
+                    <td>
+                        {{ item.produto.nome }}
+                        {% if item.unidade_conversao %}
+                            <small class="text-muted">({{ item.unidade_conversao.nome_unidade }})</small>
+                        {% else %}
+                            <small class="text-muted">({{ item.produto.unidade_base }})</small>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ "%g"|format(item.quantidade) }}</td>
+                    <td class="text-end">R$ {{ "%.2f"|format(item.preco_unitario) }}</td>
+                    <td class="text-end">R$ {{ "%.2f"|format(item.subtotal) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Total da Venda -->
+        <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-3">
+            <h5 class="text-muted">Status: <span class="badge bg-secondary">{{ venda.status }}</span></h5>
+            <h4 class="text-end">Total: <strong>R$ {{ "%.2f"|format(venda.valor_total) }}</strong></h4>
+        </div>
+
+        <!-- Rodapé / Observações -->
+        <div class="mt-5 text-center text-muted small border-top pt-3">
+            <p class="mb-1">Obrigado pela preferência! Volte sempre.</p>
+            <p class="mb-0">Documento gerado pelo Sistema Interno de Gestão</p>
+        </div>
+
+        <!-- Botões de Ação (Aparecem na tela, somem na hora da impressão) -->
+        <div class="text-center mt-4 no-print">
+            <button onclick="window.print()" class="btn btn-primary px-4">Imprimir Novamente</button>
+            <a href="/vendas" class="btn btn-secondary px-4">Voltar ao Histórico</a>
+        </div>
+    </div>
+
+</body>
+</html>

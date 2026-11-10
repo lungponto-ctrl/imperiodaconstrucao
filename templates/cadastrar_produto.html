@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Novo Produto - Depósito de Construção</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light py-4">
+    <div class="container" style="max-width: 900px;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Cadastrar Novo Produto</h2>
+            <a href="/" class="btn btn-outline-secondary">Voltar ao Estoque</a>
+        </div>
+
+        <!-- Card com Dicas Rápidas -->
+        <div class="alert alert-info shadow-sm mb-4">
+            <h5 class="alert-heading">💡 Dicas para o Depósito:</h5>
+            <ul class="mb-0 small">
+                <li><strong>Unidade Base:</strong> É a menor unidade usada para controlar o estoque físico (Ex: <em>UN</em> para cimento/tijolo, <em>M2</em> para piso, <em>M3</em> para areia).</li>
+                <li><strong>Unidades de Conversão:</strong> Use se você vende o mesmo produto em embalagens maiores (Ex: Palete de cimento = 40 sacos; Caixa de piso = 2.2 m²).</li>
+            </ul>
+        </div>
+
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <form method="POST">
+                    <!-- Informações Básicas -->
+                    <h5 class="text-primary mb-3">1. Informações Principais</h5>
+                    <div class="row g-3 mb-4">
+                        <!-- Linha 1: Nome, Código de Barras e SKU -->
+                        <div class="col-md-6">
+                            <label for="nome" class="form-label">Nome do Produto *</label>
+                            <input type="text" class="form-control" id="nome" name="nome" required placeholder="Ex: Saco de Cimento CP-II 50kg">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="codigo_barras" class="form-label">Código de Barras</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="codigo_barras" name="codigo_barras" placeholder="Bipe aqui...">
+                                <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('codigo_barras').focus()" title="Focar para leitura">🔍</button>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="sku" class="form-label">SKU / Cód. Interno</label>
+                            <input type="text" class="form-control" id="sku" name="sku" placeholder="Ex: CIM-50">
+                        </div>
+
+                        <!-- Linha 2: Categoria, Unid Base, Estoques e Preços -->
+                        <div class="col-md-4">
+                            <label for="categoria_id" class="form-label">Categoria</label>
+                            <select class="form-select" id="categoria_id" name="categoria_id">
+                                <option value="">Selecione...</option>
+                                {% for cat in categorias %}
+                                <option value="{{ cat.id }}">{{ cat.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="unidade_base" class="form-label">Unid. Base *</label>
+                            <input type="text" class="form-control" id="unidade_base" name="unidade_base" required placeholder="UN, M2">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="quantidade_estoque" class="form-label">Estoque Ini. *</label>
+                            <input type="number" step="0.001" class="form-control" id="quantidade_estoque" name="quantidade_estoque" value="0.000" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="estoque_minimo" class="form-label">Est. Mín. *</label>
+                            <input type="number" step="0.001" class="form-control" id="estoque_minimo" name="estoque_minimo" value="0.000" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="preco_custo" class="form-label">Custo (R$)</label>
+                            <input type="number" step="0.01" class="form-control" id="preco_custo" name="preco_custo" value="0.00" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="preco_venda_base" class="form-label">Preço de Venda (R$) *</label>
+                            <input type="number" step="0.01" class="form-control" id="preco_venda_base" name="preco_venda_base" value="0.00" required>
+                        </div>
+                    </div>
+
+                    <!-- Unidades de Conversão -->
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="text-primary mb-0">2. Embalagens Alternativas (Opcional)</h5>
+                            <small class="text-muted">Ex: Palete, Caixa, Fardo, Metro.</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-success" id="btn-add-conversao">+ Adicionar Embalagem</button>
+                    </div>
+
+                    <div id="conversoes-container" class="mb-4">
+                        <!-- Linhas dinâmicas entram aqui -->
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        <a href="/" class="btn btn-secondary me-md-2">Cancelar</a>
+                        <button type="submit" class="btn btn-primary px-5">Salvar Produto</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('btn-add-conversao').addEventListener('click', function() {
+            const container = document.getElementById('conversoes-container');
+            const row = document.createElement('div');
+            row.className = 'row g-2 mb-2 align-items-end p-2 border rounded bg-white';
+            row.innerHTML = `
+                <div class="col-md-4">
+                    <label class="form-label small">Nome da Embalagem</label>
+                    <input type="text" class="form-control" name="conversao_nome[]" placeholder="Ex: Palete, Caixa 2.2m²" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small">Fator de Conversão</label>
+                    <input type="number" step="0.0001" class="form-control" name="conversao_fator[]" placeholder="Quantas un. base tem?" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Preço de Venda (R$)</label>
+                    <input type="number" step="0.01" class="form-control" name="conversao_preco[]" placeholder="0.00" required>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-danger btn-remove w-100">X</button>
+                </div>
+            `;
+            container.appendChild(row);
+
+            row.querySelector('.btn-remove').addEventListener('click', function() {
+                row.remove();
+            });
+        });
+    </script>
+
+<!-- ... restante do seu código HTML ... -->
+
+    <!-- BLOQUEIO POR INATIVIDADE -->
+    <div id="overlayBloqueio" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); z-index: 99999; align-items: center; justify-content: center;">
+        <div class="card shadow-lg p-4 text-center" style="width: 100%; max-width: 380px; border-radius: 12px;">
+            <h3 class="text-warning mb-2">🔒 Sistema Bloqueado</h3>
+            <p class="text-muted small mb-3">Inatividade detectada. Digite sua senha para continuar.</p>
+            <form id="formDesbloquear" onsubmit="desbloquearSistema(event)">
+                <div class="mb-3 text-start">
+                    <label class="form-label small fw-bold">Operador Atual: {{ current_user.nome }}</label>
+                    <input type="password" class="form-control" id="senhaDesbloqueio" placeholder="Digite sua senha" required autofocus>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2">Desbloquear</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let tempoInatividade = 0;
+        const TEMPO_LIMITE = 5 * 60 * 1000; // 5 minutos
+        let timerId = null;
+
+        function resetarTimer() {
+            clearTimeout(timerId);
+            tempoInatividade = 0;
+            timerId = setTimeout(ativarBloqueio, TEMPO_LIMITE);
+        }
+
+        function ativarBloqueio() {
+            document.getElementById('overlayBloqueio').style.display = 'flex';
+            document.getElementById('senhaDesbloqueio').value = '';
+            document.getElementById('senhaDesbloqueio').focus();
+        }
+
+        async function desbloquearSistema(event) {
+            event.preventDefault();
+            const senha = document.getElementById('senhaDesbloqueio').value;
+
+            try {
+                const response = await fetch('/api/desbloquear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ senha: senha })
+                });
+
+                const resultado = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('overlayBloqueio').style.display = 'none';
+                    resetarTimer();
+                } else {
+                    alert('Erro: ' + resultado.mensagem);
+                    document.getElementById('senhaDesbloqueio').value = '';
+                    document.getElementById('senhaDesbloqueio').focus();
+                }
+            } catch (error) {
+                alert('Erro de comunicação com o servidor.');
+            }
+        }
+
+        window.onload = resetarTimer;
+        window.onmousemove = resetarTimer;
+        window.onkeypress = resetarTimer;
+        window.onclick = resetarTimer;
+        window.onscroll = resetarTimer;
+    </script>
+</body>
+</html>
+
+</body>
+</html>

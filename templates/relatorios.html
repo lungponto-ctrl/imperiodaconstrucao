@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatórios e Faturamento - Império da Construção</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light py-4">
+    <div class="container-fluid px-4">
+        <!-- Cabeçalho -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>📊 Relatórios e Faturamento</h2>
+            <div>
+                <a href="/pdv" class="btn btn-outline-primary me-2">Ir para o PDV</a>
+                <a href="/" class="btn btn-outline-secondary">Voltar ao Estoque</a>
+            </div>
+        </div>
+
+        <!-- Cards de Resumo Rápido -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card shadow-sm border-success">
+                    <div class="card-body">
+                        <h6 class="text-muted text-uppercase small">Faturamento de Hoje</h6>
+                        <h3 class="text-success fw-bold">R$ {{ "%.2f"|format(faturamento_hoje) }}</h3>
+                        <small class="text-muted">{{ vendas_hoje|length }} vendas realizadas hoje</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-primary">
+                    <div class="card-body">
+                        <h6 class="text-muted text-uppercase small">Faturamento (Filtro Atual)</h6>
+                        <h3 class="text-primary fw-bold">R$ {{ "%.2f"|format(faturamento_total) }}</h3>
+                        <small class="text-muted">{{ total_vendas }} vendas no período selecionado</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card shadow-sm border-warning">
+                    <div class="card-body">
+                        <h6 class="text-muted text-uppercase small">Orçamentos Registrados</h6>
+                        <h3 class="text-warning fw-bold">{{ total_orcamentos }}</h3>
+                        <small class="text-muted">Total geral no sistema</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Layout Lado a Lado (Esquerda: Vendas do Dia | Direita: Filtro e Vendas Gerais) -->
+        <div class="row">
+            <!-- COLUNA ESQUERDA: Vendas do Dia Detalhadas -->
+            <div class="col-lg-5 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">☀️ Vendas de Hoje Detalhadas</h5>
+                        <span class="badge bg-success">{{ vendas_hoje|length }} pedidos</span>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 550px; overflow-y: auto;">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Horário</th>
+                                    <th>Cliente</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if vendas_hoje %}
+                                    {% for v in vendas_hoje %}
+                                    <tr>
+                                        <td><strong>#{{ v.id }}</strong></td>
+                                        <td>{{ v.data_criacao.strftime('%H:%M') }}</td>
+                                        <td>{{ v.cliente_nome or 'Balcão' }}</td>
+                                        <td class="text-end fw-bold text-success">R$ {{ "%.2f"|format(v.valor_total) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted py-4">Nenhuma venda realizada hoje ainda.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUNA DIREITA: Filtro de Período e Listagem Completa -->
+            <div class="col-lg-7 mb-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">🔍 Pesquisa de Faturamento e Vendas</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Formulário de Filtro -->
+                        <form method="GET" action="/relatorios" class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Data Início</label>
+                                <input type="date" class="form-control form-control-sm" name="data_inicio" value="{{ data_inicio }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Data Fim</label>
+                                <input type="date" class="form-control form-control-sm" name="data_fim" value="{{ data_fim }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold">Cliente ou Nº Pedido</label>
+                                <input type="text" class="form-control form-control-sm" name="busca" placeholder="Ex: João ou 5" value="{{ busca }}">
+                            </div>
+                            <div class="col-12 text-end mt-2">
+                                <button type="submit" class="btn btn-sm btn-primary px-4">Filtrar Período</button>
+                                <a href="/relatorios" class="btn btn-sm btn-outline-secondary">Limpar</a>
+                            </div>
+                        </form>
+
+                        <hr>
+
+                        <!-- Tabela de Vendas Pesquisadas -->
+                        <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+                            <table class="table table-hover table-sm align-middle">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Pedido</th>
+                                        <th>Data/Hora</th>
+                                        <th>Cliente</th>
+                                        <th>Pagamento</th>
+                                        <th class="text-end">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if vendas %}
+                                        {% for v in vendas %}
+                                        <tr>
+                                            <td><strong>#{{ v.id }}</strong></td>
+                                            <td>{{ v.data_criacao.strftime('%d/%m/%Y %H:%M') }}</td>
+                                            <td>{{ v.cliente_nome or 'Balcão' }}</td>
+                                            <td><span class="badge bg-secondary">{{ v.forma_pagamento }}</span></td>
+                                            <td class="text-end fw-bold text-primary">R$ {{ "%.2f"|format(v.valor_total) }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted py-4">Nenhuma venda encontrada com os filtros informados.</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
