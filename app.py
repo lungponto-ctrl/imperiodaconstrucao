@@ -26,10 +26,9 @@ def load_user(user_id):
     return Usuario.query.get(int(user_id))
 
 
-# --- ROTINA DE BACKUP AUTOMÁTICO ---
-
-def fazer_backup_automatico():
-    """Gera um backup diário do banco SQLite de forma segura na pasta 'backups/'."""
+# --- GARANTE CRIAÇÃO DO BANCO E DADOS INICIAIS PARA QUALQUER SERVIDOR (WSGI / GUNICORN / LOCAL) ---
+with app.app_context():
+    # Executa o backup automático do banco se houver um arquivo pré-existente
     try:
         pasta_backup = 'backups'
         if not os.path.exists(pasta_backup):
@@ -37,17 +36,42 @@ def fazer_backup_automatico():
 
         hoje = datetime.now().strftime('%Y-%m-%d')
         nome_arquivo_backup = os.path.join(pasta_backup, f'deposito_backup_{hoje}.db')
-
-        # Localiza o arquivo de banco de dados atual
         caminho_banco = 'instance/deposito.db' if os.path.exists('instance/deposito.db') else 'deposito.db'
 
-        if os.path.exists(caminho_banco):
-            # Cria o backup apenas se ainda não existir um arquivo para o dia de hoje
-            if not os.path.exists(nome_arquivo_backup):
-                shutil.copy(caminho_banco, nome_arquivo_backup)
-                print(f">>> [BACKUP] Cópia de segurança criada com sucesso: {nome_arquivo_backup}")
+        if os.path.exists(caminho_banco) and not os.path.exists(nome_arquivo_backup):
+            shutil.copy(caminho_banco, nome_arquivo_backup)
+            print(f">>> [BACKUP] Cópia de segurança criada com sucesso: {nome_arquivo_backup}")
     except Exception as e:
         print(f">>> [BACKUP] Erro ao realizar backup automático: {str(e)}")
+
+    # Cria todas as tabelas do banco de dados na nuvem ou localmente
+    db.create_all()
+
+    # Cria categorias padrão caso o banco esteja vazio
+    if Categoria.query.count() == 0:
+        categorias_iniciais = [
+            "Cimentos e Argamassas",
+            "Areia, Brita e Pedras",
+            "Tijolos e Blocos",
+            "Pisos e Revestimentos",
+            "Hidráulica / PVC",
+            "Elétrica / Fios",
+            "Tintas e Acessórios",
+            "Ferramentas e Ferragens",
+            "Diversos"
+        ]
+        for nome_cat in categorias_iniciais:
+            db.session.add(Categoria(nome=nome_cat))
+        db.session.commit()
+        print(">>> Categorias padrão criadas com sucesso!")
+
+    # Cria usuário administrador padrão caso não exista nenhum usuário
+    if not Usuario.query.first():
+        admin = Usuario(nome="Administrador do Sistema", username="admin", cargo="Gerente")
+        admin.set_password("123456")
+        db.session.add(admin)
+        db.session.commit()
+        print(">>> Usuário administrador padrão criado: admin / 123456")
 
 
 # --- ROTAS DE AUTENTICAÇÃO E USUÁRIOS ---
@@ -127,7 +151,6 @@ def editar_usuario(usuario_id):
             usuario.username = request.form.get('username')
             usuario.cargo = request.form.get('cargo', 'Vendedor')
 
-            # Atualiza a senha apenas se o usuário preencheu o campo
             nova_senha = request.form.get('password')
             if nova_senha:
                 usuario.set_password(nova_senha)
@@ -381,14 +404,11 @@ def imprimir_venda(venda_id):
     return render_template('comprovante_venda.html', venda=venda)
 
 
-# --- ROTA DE EXCLUSÃO DE VENDAS COM SENHA DE GERENTE E ESTORNO DE ESTOQUE ---
-
 @app.route('/vendas/<int:venda_id>/excluir', methods=['POST'])
 @login_required
 def excluir_venda(venda_id):
     venda = Venda.query.get_or_404(venda_id)
 
-    # Verifica se precisa de senha de gerente (se o usuário atual for Vendedor)
     if current_user.cargo != 'Gerente':
         senha_gerente = request.form.get('senha_gerente')
         gerentes = Usuario.query.filter_by(cargo='Gerente').all()
@@ -404,10 +424,8 @@ def excluir_venda(venda_id):
             return redirect(url_for('listar_vendas'))
 
     try:
-        # Transforma os itens em uma lista fixa para evitar problemas de concorrência no loop
         itens_venda = list(venda.itens)
 
-        # 1. Estorna os produtos utilizando a função padrão do serviço oficial do sistema
         for item in itens_venda:
             registrar_movimentacao(
                 produto_id=item.produto_id,
@@ -418,13 +436,10 @@ def excluir_venda(venda_id):
                 usuario_id=current_user.id
             )
 
-        # 2. Remove cada item explicitamente
         for item in itens_venda:
             db.session.delete(item)
 
         db.session.flush()
-
-        # 3. Remove a venda principal
         db.session.delete(venda)
         db.session.commit()
 
@@ -433,7 +448,6 @@ def excluir_venda(venda_id):
         db.session.rollback()
         import traceback
         traceback.print_exc()
-        print(f">>> ERRO CRÍTICO AO EXCLUIR VENDA #{venda_id}: {str(e)}")
         flash(f'Erro ao excluir venda: {str(e)}', 'danger')
 
     return redirect(url_for('listar_vendas'))
@@ -488,34 +502,4 @@ def relatorios():
 
 
 if __name__ == '__main__':
-    with app.app_context():
-        # Executa o backup automático do banco sempre que o sistema inicia
-        fazer_backup_automatico()
-
-        db.create_all()
-
-        if Categoria.query.count() == 0:
-            categorias_iniciais = [
-                "Cimentos e Argamassas",
-                "Areia, Brita e Pedras",
-                "Tijolos e Blocos",
-                "Pisos e Revestimentos",
-                "Hidráulica / PVC",
-                "Elétrica / Fios",
-                "Tintas e Acessórios",
-                "Ferramentas e Ferragens",
-                "Diversos"
-            ]
-            for nome_cat in categorias_iniciais:
-                db.session.add(Categoria(nome=nome_cat))
-            db.session.commit()
-            print(">>> Categorias padrão criadas com sucesso!")
-
-        if not Usuario.query.first():
-            admin = Usuario(nome="Administrador do Sistema", username="admin", cargo="Gerente")
-            admin.set_password("123456")
-            db.session.add(admin)
-            db.session.commit()
-            print(">>> Usuário administrador padrão criado: admin / 123456")
-
     app.run(debug=True)
